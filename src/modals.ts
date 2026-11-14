@@ -1,6 +1,6 @@
 import { type App, FuzzySuggestModal, Modal, Setting } from "obsidian";
 
-import type { ConflictChoice } from "./restore";
+import type { ConflictChoice, RestoreResult } from "./restore";
 
 export interface PathChoice {
   /** Folder path, "" for the vault root, null for "all folders". */
@@ -78,4 +78,33 @@ export function askConflict(app: App, conflicts: string[]): Promise<ConflictChoi
 
     modal.open();
   });
+}
+
+/** Shows what happened to each file when a restore was not fully successful. */
+export function showRestoreResults(app: App, results: RestoreResult[]): void {
+  const modal = new Modal(app);
+  const restored = results.filter((result) => result.status === "restored").length;
+  const notRestored = results.length - restored;
+  modal.setTitle(
+    restored === 0
+      ? notRestored === 1
+        ? "The file was not restored"
+        : `${notRestored} files were not restored`
+      : `Restored ${restored} of ${results.length} files`,
+  );
+  const { contentEl } = modal;
+  const list = contentEl.createDiv({ cls: "trash-explorer-results" });
+  for (const result of results) {
+    if (result.status === "restored") continue;
+    const row = list.createDiv({ cls: "trash-explorer-result" });
+    row.createDiv({ cls: "trash-explorer-result-path", text: result.path });
+    row.createDiv({ cls: "trash-explorer-muted", text: result.reason });
+  }
+  new Setting(contentEl).addButton((button) =>
+    button
+      .setButtonText("Close")
+      .setCta()
+      .onClick(() => modal.close()),
+  );
+  modal.open();
 }

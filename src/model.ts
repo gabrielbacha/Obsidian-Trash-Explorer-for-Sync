@@ -20,9 +20,12 @@ export type DatePreset = "any" | "1d" | "7d" | "30d" | "90d" | "365d" | "custom"
 export type SortKey = "name" | "folder" | "ts" | "size" | "device";
 export type SortDirection = "asc" | "desc";
 export type ViewMode = "list" | "tree";
+export type SearchScope = "all" | "name" | "folder";
 
 export interface Filters {
   query: string;
+  /** Which part of the path the search looks at. */
+  scope: SearchScope;
   /** Folder path; includes subfolders. "" means files in the vault root only. null means all folders. */
   folder: string | null;
   kind: FileKind | "all";
@@ -88,6 +91,13 @@ export const TEXT_EXTENSIONS = new Set([
   "yaml",
   "svg",
 ]);
+
+const PREVIEW_KINDS = new Set<FileKind>(["note", "canvas", "base", "image", "pdf", "audio", "video"]);
+
+/** True when the preview pane can show this file type. */
+export function canPreview(entry: Pick<TrashEntry, "kind" | "extension">): boolean {
+  return PREVIEW_KINDS.has(entry.kind) || TEXT_EXTENSIONS.has(entry.extension) || entry.extension === "";
+}
 
 export function splitPath(path: string): { folder: string; name: string; extension: string } {
   const slash = path.lastIndexOf("/");
@@ -163,9 +173,15 @@ export function applyFilters(
     if (entry.ts < start || entry.ts > end) continue;
     if (filters.hideExisting && context.exists(entry.path)) continue;
     if (context.matcher) {
-      const match = context.matcher(entry.path);
+      const scope = filters.scope ?? "all";
+      const target = scope === "name" ? entry.name : scope === "folder" ? entry.folder : entry.path;
+      if (target === "") continue;
+      const match = context.matcher(target);
       if (!match) continue;
-      result.push({ entry, score: match.score, matches: match.matches });
+      // Match ranges are always kept relative to the full path.
+      const base = scope === "name" && entry.folder !== "" ? entry.folder.length + 1 : 0;
+      const matches: MatchRanges = match.matches.map(([from, to]) => [from + base, to + base]);
+      result.push({ entry, score: match.score, matches });
     } else {
       result.push({ entry, score: 0, matches: [] });
     }

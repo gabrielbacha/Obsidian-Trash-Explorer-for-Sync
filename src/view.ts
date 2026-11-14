@@ -3,30 +3,32 @@ import {
   ItemView,
   normalizePath,
   Notice,
-  prepareFuzzySearch,
+  prepareSimpleSearch,
   setIcon,
   setTooltip,
   type WorkspaceLeaf,
 } from "obsidian";
 
+import { type Availability, AvailabilityChecker } from "./availability";
 import type TrashExplorerPlugin from "./main";
-import { askConflict, FolderPickerModal, type PathChoice, vaultFolderChoices } from "./modals";
+import { askConflict, FolderPickerModal, type PathChoice, showRestoreResults, vaultFolderChoices } from "./modals";
 import {
   applyFilters,
   buildEntries,
   buildTreeRows,
+  canPreview,
   collectDevices,
   collectFolders,
   type DatePreset,
   type FileKind,
   type FilteredEntry,
   type Filters,
-  formatSize,
   highlightParts,
   listRows,
   type MatchRanges,
   type Matcher,
   type Row,
+  type SearchScope,
   type SortDirection,
   type SortKey,
   sortEntries,
@@ -34,7 +36,7 @@ import {
   type ViewMode,
 } from "./model";
 import { errorMessage, PreviewPane } from "./preview";
-import { type ConflictChoice, type RestoreFiles, restoreFile, type RestoreResult } from "./restore";
+import { type ConflictChoice, NO_CONTENT_REASON, type RestoreFiles, restoreFile, type RestoreResult } from "./restore";
 import { DATE_LABELS } from "./settings";
 import { getSyncAccess, type SyncAccess, type SyncUid, SyncUnavailableError } from "./sync-api";
 import { formatFull, fromNow, parseDateInput } from "./time";
@@ -69,11 +71,22 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "name", label: "Name" },
   { key: "folder", label: "Folder" },
   { key: "ts", label: "Deleted" },
-  { key: "size", label: "Size" },
   { key: "device", label: "Device" },
 ];
 
 const NARROW_WIDTH = 720;
+
+const SCOPE_LABELS: Record<SearchScope, string> = {
+  all: "Name and folder",
+  name: "Name only",
+  folder: "Folder only",
+};
+
+const SCOPE_PLACEHOLDERS: Record<SearchScope, string> = {
+  all: "Search deleted files by name or folder…",
+  name: "Search deleted files by name…",
+  folder: "Search deleted files by folder…",
+};
 
 type LoadState = { status: "loading" } | { status: "ready" } | { status: "error"; error: unknown };
 
@@ -110,6 +123,7 @@ export class TrashExplorerView extends ItemView {
   private restoreToButton!: HTMLButtonElement;
   private list!: VirtualList<Row>;
   private preview!: PreviewPane;
+  private checker!: AvailabilityChecker;
   private sync: SyncAccess | null = null;
 
   private readonly refilterSoon = debounce(() => this.refilter(false), 150, true);
@@ -121,6 +135,7 @@ export class TrashExplorerView extends ItemView {
     this.mode = settings.defaultView;
     this.filters = {
       query: "",
+      scope: "all",
       folder: null,
       kind: "all",
       date: settings.defaultDate,
@@ -162,11 +177,35 @@ export class TrashExplorerView extends ItemView {
         restore: (entry, uid) => void this.restoreEntries([entry], null, uid),
         restoreTo: (entry, uid) => this.pickTargetAndRestore([entry], uid),
         back: () => this.closePreview(),
+        known: (path, availability) => {
+          this.checker.set(path, availability);
+          this.list.refresh();
+        },
       }),
     );
     this.preview.clear();
 
     this.list = new VirtualList<Row>(this.scrollEl, (row, el, index) => this.renderRow(row, el, index));
+    let refreshFrame = 0;
+    this.checker = new AvailabilityChecker(
+      () => this.requireSync(),
+      () => {
+        if (refreshFrame) return;
+        refreshFrame = this.scrollEl.win.requestAnimationFrame(() => {
+          refreshFrame = 0;
+          this.list.refresh();
+        });
+      },
+    );
+    const checkVisible = debounce(
+      (rows: Row[]) => {
+        if (this.loadState.status !== "ready") return;
+        this.checker.request(rows.flatMap((row) => (row.type === "file" ? [row.item.entry.path] : [])));
+      },
+      250,
+      true,
+    );
+    this.list.onVisible = checkVisible;
     this.registerDomEvent(this.scrollEl, "keydown", (event) => this.onListKey(event));
 
     const refreshIfHiding = () => {
@@ -183,6 +222,7 @@ export class TrashExplorerView extends ItemView {
 
   override async onClose(): Promise<void> {
     this.list?.destroy();
+    this.checker?.stop();
     this.loadToken++;
   }
 
@@ -201,6 +241,7 @@ export class TrashExplorerView extends ItemView {
       this.sync = getSyncAccess(this.app);
       const records = await this.sync.listDeleted();
       if (token !== this.loadToken) return;
+      this.checker.clear();
       this.entries = buildEntries(records, {
         configDir: this.app.vault.configDir,
         showConfig: this.plugin.settings.showConfigFiles,
@@ -232,10 +273,12 @@ export class TrashExplorerView extends ItemView {
     const searchWrap = toolbar.createDiv({ cls: "trash-explorer-search search-input-container" });
     this.searchEl = searchWrap.createEl("input", {
       type: "search",
-      attr: { placeholder: "Search deleted files by name or path…", spellcheck: "false", "aria-label": "Search" },
+      attr: { placeholder: SCOPE_PLACEHOLDERS.all, spellcheck: "false", "aria-label": "Search" },
     });
     this.registerDomEvent(this.searchEl, "input", () => {
+      const hadQuery = this.filters.query !== "";
       this.filters.query = this.searchEl.value.trim();
+      if (hadQuery !== (this.filters.query !== "")) this.renderHeader();
       this.refilter(true);
     });
     this.registerDomEvent(this.searchEl, "keydown", (event) => {
@@ -244,6 +287,18 @@ export class TrashExplorerView extends ItemView {
         this.scrollEl.focus();
         this.moveActive(1);
       }
+    });
+
+    const scope = toolbar.createEl("select", {
+      cls: "dropdown trash-explorer-scope",
+      attr: { "aria-label": "Search in" },
+    });
+    for (const [value, label] of Object.entries(SCOPE_LABELS)) scope.createEl("option", { value, text: label });
+    scope.value = this.filters.scope;
+    this.registerDomEvent(scope, "change", () => {
+      this.filters.scope = scope.value as SearchScope;
+      this.searchEl.placeholder = SCOPE_PLACEHOLDERS[this.filters.scope];
+      if (this.filters.query) this.refilter(true);
     });
 
     this.layoutButton = toolbar.createEl("button", { cls: "clickable-icon" });
@@ -304,6 +359,7 @@ export class TrashExplorerView extends ItemView {
     this.registerDomEvent(to, "change", updateRange);
 
     this.deviceSelect = bar.createEl("select", { cls: "dropdown", attr: { "aria-label": "Device" } });
+    this.updateFilterOptions();
     this.registerDomEvent(this.deviceSelect, "change", () => {
       this.filters.device = this.deviceSelect.value === "" ? null : this.deviceSelect.value;
       this.refilter(true);
@@ -359,9 +415,9 @@ export class TrashExplorerView extends ItemView {
     const query = this.filters.query;
     let matcher: Matcher | null = null;
     if (query) {
-      const fuzzy = prepareFuzzySearch(query);
+      const search = prepareSimpleSearch(query);
       matcher = (text) => {
-        const result = fuzzy(text);
+        const result = search(text);
         return result ? { score: result.score, matches: result.matches } : null;
       };
     }
@@ -378,8 +434,9 @@ export class TrashExplorerView extends ItemView {
   private rebuildRows(resetScroll: boolean): void {
     const expandAll = this.filters.query !== "";
     this.rows = this.mode === "tree" ? buildTreeRows(this.filtered, this.expanded, expandAll) : listRows(this.filtered);
-    this.list.setItems(this.rows, resetScroll);
+    // Show or hide the list first: the list measures its visible rows when it renders.
     this.renderMessage();
+    this.list.setItems(this.rows, resetScroll);
     this.renderStatus();
   }
 
@@ -419,6 +476,7 @@ export class TrashExplorerView extends ItemView {
     this.filters = {
       ...this.filters,
       query: "",
+      scope: "all",
       folder: null,
       kind: "all",
       date: "any",
@@ -427,6 +485,7 @@ export class TrashExplorerView extends ItemView {
       device: null,
     };
     this.searchEl.value = "";
+    this.renderHeader();
     for (const select of Array.from(
       this.rootEl.querySelectorAll<HTMLSelectElement>(".trash-explorer-filters select"),
     )) {
@@ -466,13 +525,18 @@ export class TrashExplorerView extends ItemView {
         if (this.sortKey === column.key) this.sortDirection = this.sortDirection === "asc" ? "desc" : "asc";
         else {
           this.sortKey = column.key;
-          this.sortDirection = column.key === "ts" || column.key === "size" ? "desc" : "asc";
+          this.sortDirection = column.key === "ts" ? "desc" : "asc";
         }
         this.sortChosen = true;
         this.renderHeader();
         this.refilter(false);
       });
     }
+    const content = this.headerEl.createDiv({
+      cls: "trash-explorer-cell-status trash-explorer-header-label",
+      text: "Content",
+    });
+    setTooltip(content, "Whether Sync still has content for the file. Checked for the rows on screen.");
   }
 
   private headerCheckbox(): HTMLInputElement | null {
@@ -533,6 +597,8 @@ export class TrashExplorerView extends ItemView {
     const checkCell = el.createDiv({ cls: "trash-explorer-cell-check" });
     const checkbox = checkCell.createEl("input", { type: "checkbox", attr: { "aria-label": `Select ${entry.name}` } });
     checkbox.checked = this.selected.has(entry.path);
+    const availability = this.checker.get(entry.path);
+    el.toggleClass("is-unavailable", availability?.status === "none");
     checkbox.addEventListener("click", (event) => {
       event.stopPropagation();
       this.toggleSelection(index, event.shiftKey);
@@ -548,8 +614,8 @@ export class TrashExplorerView extends ItemView {
 
     const dateCell = el.createDiv({ cls: "trash-explorer-cell-ts", text: fromNow(entry.ts) });
     dateCell.setAttr("title", formatFull(entry.ts));
-    el.createDiv({ cls: "trash-explorer-cell-size", text: formatSize(entry.size) });
     el.createDiv({ cls: "trash-explorer-cell-device", text: entry.device });
+    this.renderStatusCell(el, entry);
 
     el.addEventListener("click", (event) => {
       if (event.shiftKey || event.metaKey || event.ctrlKey) {
@@ -559,6 +625,14 @@ export class TrashExplorerView extends ItemView {
       this.anchorIndex = index;
       this.openEntry(entry);
     });
+  }
+
+  private renderStatusCell(el: HTMLElement, entry: TrashEntry): void {
+    const key = statusKey(entry, this.checker.get(entry.path));
+    const label = STATUS_LABELS[key];
+    const cell = el.createDiv({ cls: "trash-explorer-cell-status" });
+    const badge = cell.createSpan({ cls: `trash-explorer-badge mod-${key}`, text: label.text });
+    setTooltip(badge, label.tip);
   }
 
   private renderFolderRow(row: Extract<Row, { type: "folder" }>, el: HTMLElement): void {
@@ -711,6 +785,17 @@ export class TrashExplorerView extends ItemView {
     }
     const files = this.files();
 
+    // Files already known to have no content are reported, not sent to Sync.
+    const known: RestoreResult[] = [];
+    const missing = entries.filter((entry) => this.checker.get(entry.path)?.status === "none");
+    for (const entry of missing)
+      known.push({ status: "failed", path: entry.path, code: "no-content", reason: NO_CONTENT_REASON });
+    entries = entries.filter((entry) => !missing.includes(entry));
+    if (entries.length === 0) {
+      showRestoreResults(this.app, known);
+      return;
+    }
+
     const targets = entries.map((entry) => {
       const folder = targetFolder ?? entry.folder;
       return folder === "" ? entry.name : `${folder}/${entry.name}`;
@@ -746,16 +831,16 @@ export class TrashExplorerView extends ItemView {
       this.restoring = false;
     }
 
-    const restored = results.filter((result) => result.status === "restored");
-    const skipped = results.filter((result) => result.status === "skipped");
-    const failed = results.filter((result) => result.status === "failed");
-    for (const result of failed)
-      console.error(`Trash Explorer for Sync: cannot restore ${result.path}: ${result.reason}`);
     entries.forEach((entry, index) => {
-      if (results[index]?.status === "restored") this.selected.delete(entry.path);
+      const result = results[index];
+      if (result?.status === "restored") this.selected.delete(entry.path);
+      if (result?.status === "failed" && result.code === "no-content") this.checker.set(entry.path, { status: "none" });
     });
 
-    new Notice(summary(restored, skipped, failed), 8000);
+    const all = [...known, ...results];
+    const restored = all.filter((result) => result.status === "restored");
+    if (restored.length === all.length) new Notice(successMessage(restored), 8000);
+    else showRestoreResults(this.app, all);
     this.refilter(false);
   }
 }
@@ -767,18 +852,30 @@ function renderHighlighted(el: HTMLElement, text: string, matches: MatchRanges, 
   }
 }
 
-function summary(restored: RestoreResult[], skipped: RestoreResult[], failed: RestoreResult[]): string {
-  const lines: string[] = [];
-  if (restored.length === 1 && skipped.length === 0 && failed.length === 0) {
-    const [only] = restored;
-    if (only?.status === "restored") {
-      return only.method === "server"
-        ? `Restored ${only.path}. Sync downloads it in a moment.`
-        : `Restored ${only.path}.`;
-    }
+function successMessage(restored: RestoreResult[]): string {
+  const [only] = restored;
+  if (restored.length === 1 && only?.status === "restored") {
+    return only.method === "server"
+      ? `Restored ${only.path}. Sync downloads it in a moment.`
+      : `Restored ${only.path}.`;
   }
-  if (restored.length) lines.push(`Restored ${restored.length} ${restored.length === 1 ? "file" : "files"}.`);
-  if (skipped.length) lines.push(`Skipped ${skipped.length} because a file with the same name exists.`);
-  if (failed.length) lines.push(`Could not restore ${failed.length}. The developer console has the details.`);
-  return lines.join(" ") || "Nothing was restored.";
+  return `Restored ${restored.length} files.`;
+}
+
+const STATUS_LABELS: Record<"checking" | "preview" | "no-preview" | "none" | "error", { text: string; tip: string }> = {
+  checking: { text: "Checking…", tip: "Asking Sync whether it has content for this file." },
+  preview: { text: "Preview", tip: "Sync has content for this file, and you can preview it here." },
+  "no-preview": {
+    text: "No preview",
+    tip: "Sync has content for this file, but this file type has no preview. You can restore it.",
+  },
+  none: { text: "No content", tip: NO_CONTENT_REASON },
+  error: { text: "Unknown", tip: "Sync did not answer. Try again later." },
+};
+
+function statusKey(entry: TrashEntry, availability: Availability | undefined): keyof typeof STATUS_LABELS {
+  if (!availability || availability.status === "checking") return "checking";
+  if (availability.status === "none") return "none";
+  if (availability.status === "error") return "error";
+  return canPreview(entry) ? "preview" : "no-preview";
 }

@@ -4,6 +4,7 @@ import {
   applyFilters,
   buildEntries,
   buildTreeRows,
+  canPreview,
   collectDevices,
   collectFolders,
   type Filters,
@@ -33,6 +34,7 @@ const RECORDS: DeletedRecord[] = [
 
 const BASE: Filters = {
   query: "",
+  scope: "all",
   folder: null,
   kind: "all",
   date: "any",
@@ -120,6 +122,43 @@ describe("applyFilters", () => {
     );
     expect(result).toHaveLength(1);
     expect(result[0]?.matches).toEqual([[9, 13]]);
+  });
+});
+
+describe("search scope", () => {
+  it("searches only names, only folders, or both", () => {
+    expect(filter({ query: "alpha" })).toEqual(["Projects/Alpha/plan.md"]);
+    expect(filter({ query: "alpha", scope: "name" })).toEqual([]);
+    expect(filter({ query: "alpha", scope: "folder" })).toEqual(["Projects/Alpha/plan.md"]);
+    expect(filter({ query: "plan", scope: "folder" })).toEqual([]);
+    expect(filter({ query: "plan", scope: "name" })).toEqual(["Projects/Alpha/plan.md"]);
+  });
+
+  it("never matches the folder of a root file", () => {
+    expect(filter({ query: "inbox", scope: "folder" })).toEqual([]);
+    expect(filter({ query: "inbox", scope: "name" })).toEqual(["inbox.md"]);
+  });
+
+  it("keeps name match ranges relative to the full path", () => {
+    const entries = buildEntries(RECORDS, { configDir: ".obsidian" });
+    const result = applyFilters(
+      entries,
+      { ...BASE, query: "logo", scope: "name" },
+      { now: NOW, exists: () => false, matcher: substring("logo") },
+    );
+    // "Projects/Beta/logo.png": the name starts at 14.
+    expect(result[0]?.matches).toEqual([[14, 18]]);
+  });
+});
+
+describe("canPreview", () => {
+  it("knows which file types the preview can show", () => {
+    expect(canPreview({ kind: "note", extension: "md" })).toBe(true);
+    expect(canPreview({ kind: "image", extension: "png" })).toBe(true);
+    expect(canPreview({ kind: "pdf", extension: "pdf" })).toBe(true);
+    expect(canPreview({ kind: "other", extension: "json" })).toBe(true);
+    expect(canPreview({ kind: "other", extension: "xlsx" })).toBe(false);
+    expect(canPreview({ kind: "other", extension: "zip" })).toBe(false);
   });
 });
 

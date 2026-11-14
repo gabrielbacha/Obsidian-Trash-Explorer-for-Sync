@@ -2,7 +2,7 @@
 
 .trash-explorer {
   --trash-explorer-row-height: 32px;
-  --trash-explorer-columns: 28px minmax(140px, 2fr) minmax(100px, 1.4fr) 108px 76px minmax(70px, 0.8fr);
+  --trash-explorer-columns: 28px minmax(140px, 2fr) minmax(100px, 1.4fr) 112px minmax(80px, 0.7fr) 96px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -107,7 +107,7 @@
 /* Narrow view and phones: one pane at a time. */
 
 .trash-explorer.is-narrow {
-  --trash-explorer-columns: 28px minmax(0, 1fr) 96px;
+  --trash-explorer-columns: 28px minmax(0, 1fr) 88px 92px;
 }
 
 .trash-explorer.is-narrow .trash-explorer-main {
@@ -124,14 +124,13 @@
 }
 
 .trash-explorer.is-narrow .trash-explorer-cell-folder,
-.trash-explorer.is-narrow .trash-explorer-cell-size,
 .trash-explorer.is-narrow .trash-explorer-cell-device,
 .trash-explorer.is-tree .trash-explorer-cell-folder {
   display: none;
 }
 
 .trash-explorer.is-tree:not(.is-narrow) {
-  --trash-explorer-columns: 28px minmax(160px, 3fr) 108px 76px minmax(70px, 0.8fr);
+  --trash-explorer-columns: 28px minmax(160px, 3fr) 112px minmax(80px, 0.7fr) 96px;
 }
 
 .trash-explorer-back {
@@ -160,7 +159,7 @@
   font-size: var(--font-ui-smaller);
 }
 
-.trash-explorer-sort {
+.trash-explorer-list-header button.trash-explorer-sort {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -174,8 +173,8 @@
   cursor: pointer;
 }
 
-.trash-explorer-sort:hover,
-.trash-explorer-sort.is-active {
+.trash-explorer-list-header button.trash-explorer-sort:hover,
+.trash-explorer-list-header button.trash-explorer-sort.is-active {
   color: var(--text-normal);
   background: none;
 }
@@ -275,17 +274,8 @@
 
 .trash-explorer-cell-folder,
 .trash-explorer-cell-ts,
-.trash-explorer-cell-size,
 .trash-explorer-cell-device {
   color: var(--text-muted);
-}
-
-.trash-explorer-cell-size {
-  text-align: right;
-}
-
-.trash-explorer-list-header .trash-explorer-cell-size {
-  justify-content: flex-end;
 }
 
 .trash-explorer-hit {
@@ -468,4 +458,98 @@
   overflow: auto;
   color: var(--text-muted);
   font-size: var(--font-ui-small);
+}
+
+/* Search scope */
+
+.trash-explorer-scope {
+  flex: none;
+}
+
+/* Content column */
+
+.trash-explorer-header-label {
+  font-weight: var(--font-semibold);
+}
+
+.trash-explorer-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 1px var(--size-4-2);
+  overflow: hidden;
+  border-radius: var(--radius-l);
+  font-size: var(--font-ui-smaller);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.trash-explorer-badge.mod-checking,
+.trash-explorer-badge.mod-error {
+  color: var(--text-faint);
+}
+
+.trash-explorer-badge.mod-preview {
+  background: rgba(var(--color-green-rgb), 0.15);
+  color: var(--color-green);
+}
+
+.trash-explorer-badge.mod-no-preview {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.trash-explorer-badge.mod-none {
+  background: rgba(var(--color-red-rgb), 0.12);
+  color: var(--color-red);
+}
+
+.trash-explorer-row.is-unavailable .trash-explorer-cell-name,
+.trash-explorer-row.is-unavailable .trash-explorer-cell-folder,
+.trash-explorer-row.is-unavailable .trash-explorer-cell-ts,
+.trash-explorer-row.is-unavailable .trash-explorer-cell-device {
+  color: var(--text-faint);
+}
+
+.trash-explorer-no-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  padding: var(--size-4-4);
+  color: var(--text-muted);
+}
+
+/* Restore results dialog */
+
+.trash-explorer-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  max-height: 50vh;
+  overflow: auto;
+}
+
+.trash-explorer-result-path {
+  overflow-wrap: anywhere;
+  font-weight: var(--font-semibold);
+}
+
+.trash-explorer button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.trash-explorer-row.is-unavailable .trash-explorer-cell-name,
+.trash-explorer-row.is-unavailable .trash-explorer-cell-folder,
+.trash-explorer-row.is-unavailable .trash-explorer-cell-ts,
+.trash-explorer-row.is-unavailable .trash-explorer-cell-device {
+  opacity: 0.6;
+}
+
+.trash-explorer.is-narrow .trash-explorer-toolbar {
+  flex-wrap: wrap;
+}
+
+.trash-explorer.is-narrow .trash-explorer-search {
+  flex-basis: 100%;
 }

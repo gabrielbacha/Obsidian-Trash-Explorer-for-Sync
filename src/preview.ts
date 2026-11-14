@@ -1,6 +1,8 @@
 import { type App, Component, MarkdownRenderer, Notice, setIcon } from "obsidian";
 
+import type { Availability } from "./availability";
 import { formatSize, TEXT_EXTENSIONS, type TrashEntry } from "./model";
+import { loadVersions, NO_CONTENT_REASON } from "./restore";
 import type { HistoryItem, SyncAccess, SyncUid } from "./sync-api";
 import { formatFull, formatMedium, fromNow } from "./time";
 
@@ -35,6 +37,8 @@ export interface PreviewActions {
   restore(entry: TrashEntry, uid: SyncUid | null): void;
   restoreTo(entry: TrashEntry, uid: SyncUid | null): void;
   back(): void;
+  /** Reports what the preview learned about the file's content. */
+  known(path: string, availability: Availability): void;
 }
 
 /**
@@ -115,7 +119,9 @@ export class PreviewPane extends Component {
       this.actions.restoreTo(entry, this.selectedVersionUid()),
     );
     this.addAction(actionsEl, "copy", "Copy text", false, () => void this.copyText());
-    this.addAction(actionsEl, "history", "Sync history", false, () => this.openNativeHistory(entry.path));
+    this.addAction(actionsEl, "history", "Sync history", false, () => this.openNativeHistory(entry.path)).addClass(
+      "trash-explorer-keep",
+    );
 
     const body = this.containerEl.createDiv({ cls: "trash-explorer-preview-body" });
     const versionsEl = body.createDiv({ cls: "trash-explorer-versions" });
@@ -123,13 +129,24 @@ export class PreviewPane extends Component {
     versionsEl.createDiv({ cls: "trash-explorer-muted", text: "Loading versions…" });
 
     try {
-      const history = await this.getSync().getHistory(entry.path, null);
+      const history = await loadVersions(this.getSync(), entry.path, { maxPages: 3 });
       if (token !== this.token) return;
-      this.versions = history.items.filter((item) => !item.deleted && !item.folder);
-      this.renderVersions(versionsEl, contentEl, history.more, token);
+      this.versions = history.versions;
       const first = this.versions[0];
-      if (first) await this.showVersion(first, contentEl, token);
-      else contentEl.setText("Sync has no version with content for this file.");
+      this.actions.known(entry.path, first ? { status: "content", size: first.size } : { status: "none" });
+      if (!first) {
+        versionsEl.empty();
+        for (const button of Array.from(actionsEl.querySelectorAll("button"))) {
+          if (!button.hasClass("trash-explorer-keep")) button.disabled = true;
+        }
+        contentEl.empty();
+        const notice = contentEl.createDiv({ cls: "trash-explorer-no-content" });
+        notice.createDiv({ cls: "trash-explorer-message-title", text: "Cannot restore this file" });
+        notice.createDiv({ text: NO_CONTENT_REASON });
+        return;
+      }
+      this.renderVersions(versionsEl, contentEl, history.more, token);
+      await this.showVersion(first, contentEl, token);
     } catch (error) {
       if (token !== this.token) return;
       versionsEl.empty();
@@ -149,6 +166,7 @@ export class PreviewPane extends Component {
     setIcon(button.createSpan({ cls: "trash-explorer-button-icon" }), icon);
     button.createSpan({ text: label });
     button.addEventListener("click", onClick);
+    return button;
   }
 
   private openNativeHistory(path: string) {

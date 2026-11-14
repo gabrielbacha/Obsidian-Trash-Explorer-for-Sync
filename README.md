@@ -24,16 +24,23 @@ The listed name in Obsidian is **Trash Explorer for Sync**.
 
 ## Highlights
 
-- Instant fuzzy search on the file name and the full original path.
+- Instant search in the name and folder, the name only, or the folder only.
+  Each word you type must appear, in any order.
+- A **Content** column shows, for the rows on screen, whether Sync still has
+  the file's content: **Preview** (you can preview and restore it), **No
+  preview** (you can restore it, but this file type has no preview), or **No
+  content** (Sync has only the deletion record, so nobody can restore it).
 - Filters: original folder (with subfolders), file type, deleted date (last
   24 hours to last year, or a custom range), device, and "hide files that
   exist again".
-- Two layouts: a sortable list (name, folder, deleted date, size, device) or a
+- Two layouts: a sortable list (name, folder, deleted date, device) or a
   folder tree that groups deleted files under their original folders.
 - Preview of the last version before deletion: rendered Markdown, images, PDF,
   audio, video or plain text. Earlier versions are one click away.
 - Restore to the original path, restore to another folder, or select many
   files and restore them together.
+- When a restore does not fully succeed, a dialog lists each file and the
+  reason in plain words.
 - Restore never replaces a file. When a file with the same name exists, you
   choose: restore with a name that ends in `(restored)`, or skip.
 - Opens the core Sync version history for a file when you need more.
@@ -52,6 +59,12 @@ The listed name in Obsidian is **Trash Explorer for Sync**.
 
 Keyboard: arrow keys move through the list, Space selects the current file,
 Escape closes the preview.
+
+Sync does not save content for every deleted file. A file that was deleted
+before it synced, a file type that Sync was set not to sync, or a file whose
+versions expired has only a deletion record. The Content column and the
+preview show this before you try to restore. Sync answers one request at a
+time, so the column checks only the rows on screen.
 
 When you restore the newest version to its original path, the plugin asks the
 Sync server to restore it, in the same way as the core dialog. Sync then

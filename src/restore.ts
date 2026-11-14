@@ -8,6 +8,9 @@ export interface RestoreFiles {
   createBinary(path: string, data: ArrayBuffer): Promise<void>;
 }
 
+export const NO_CONTENT_REASON =
+  "Sync has no saved content for this file. It was not synced before it was deleted, or its versions have expired.";
+
 export type ConflictChoice = "rename" | "skip";
 
 export interface RestoreRequest {
@@ -23,7 +26,7 @@ export interface RestoreRequest {
 export type RestoreResult =
   | { status: "restored"; path: string; method: "server" | "local" }
   | { status: "skipped"; path: string; reason: string }
-  | { status: "failed"; path: string; reason: string };
+  | { status: "failed"; path: string; code: "no-content" | "error"; reason: string };
 
 function joinPath(folder: string, name: string): string {
   return folder === "" ? name : `${folder}/${name}`;
@@ -43,24 +46,55 @@ export async function freeRestoredPath(path: string, exists: (path: string) => P
   throw new Error(`No free file name for ${path}`);
 }
 
+export interface VersionList {
+  /** Versions with content, newest first. */
+  versions: HistoryItem[];
+  /** True when Sync has older history that was not loaded. */
+  more: boolean;
+}
+
+/**
+ * Loads the versions with content of a file, newest first. It pages through
+ * history like the core "Version history" dialog: when a page ends in a rename
+ * record, the next page is the history of the old path, so files that were
+ * moved and then deleted still show their content.
+ */
+export async function loadVersions(
+  sync: Pick<SyncAccess, "getHistory">,
+  path: string,
+  options: { maxPages?: number; stopAtFirst?: boolean } = {},
+): Promise<VersionList> {
+  const maxPages = options.maxPages ?? 5;
+  const versions: HistoryItem[] = [];
+  let currentPath = path;
+  let before: SyncUid | null = null;
+  for (let page = 0; page < maxPages; page++) {
+    // oxlint-disable-next-line no-await-in-loop -- each page needs the path and uid from the previous page
+    const history = await sync.getHistory(currentPath, before);
+    let items = history.items;
+    let more = history.more;
+    const renameIndex = items.findIndex((item) => item.relatedpath !== "" && !item.deleted);
+    if (renameIndex !== -1) {
+      items = items.slice(0, renameIndex + 1);
+      more = true;
+    }
+    versions.push(...items.filter((item) => !item.deleted && !item.folder));
+    if (options.stopAtFirst && versions.length > 0) return { versions, more };
+    const last = items.at(-1);
+    if (!more || !last) return { versions, more: false };
+    currentPath = last.relatedpath || last.path || currentPath;
+    before = last.uid;
+  }
+  return { versions, more: true };
+}
+
 /** The newest version of a deleted file that has content (the first history item is the deletion). */
 export async function findLatestVersion(
   sync: Pick<SyncAccess, "getHistory">,
   path: string,
 ): Promise<HistoryItem | null> {
-  let before: SyncUid | null = null;
-  // The core dialog pages through history in the same way. Three pages is plenty
-  // to step over the deletion and rename records.
-  for (let page = 0; page < 3; page++) {
-    // oxlint-disable-next-line no-await-in-loop -- each page needs the uid from the previous page
-    const history = await sync.getHistory(path, before);
-    const version = history.items.find((item) => !item.deleted && !item.folder);
-    if (version) return version;
-    const last = history.items.at(-1);
-    if (!history.more || !last) return null;
-    before = last.uid;
-  }
-  return null;
+  const { versions } = await loadVersions(sync, path, { stopAtFirst: true });
+  return versions[0] ?? null;
 }
 
 async function ensureFolder(files: RestoreFiles, folder: string): Promise<void> {
@@ -92,7 +126,7 @@ export async function restoreFile(
     let isLatest = false;
     if (uid === null) {
       const version = await findLatestVersion(sync, request.path);
-      if (!version) return { status: "failed", path: request.path, reason: "Sync has no version with content." };
+      if (!version) return { status: "failed", path: request.path, code: "no-content", reason: NO_CONTENT_REASON };
       uid = version.uid;
       isLatest = true;
     }
@@ -117,6 +151,6 @@ export async function restoreFile(
     return { status: "restored", path: target, method: "local" };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    return { status: "failed", path: request.path, reason };
+    return { status: "failed", path: request.path, code: "error", reason };
   }
 }

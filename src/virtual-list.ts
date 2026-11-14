@@ -6,6 +6,8 @@ export class VirtualList<T> {
   private readonly scrollEl: HTMLElement;
   private readonly spacerEl: HTMLElement;
   private readonly renderRow: (item: T, el: HTMLElement, index: number) => void;
+  /** Called after each render with the rows that are on screen (without overscan). */
+  onVisible: ((items: T[]) => void) | null = null;
   private items: T[] = [];
   private rowHeight = 32;
   private frame = 0;
@@ -68,6 +70,8 @@ export class VirtualList<T> {
     const first = Math.max(0, Math.floor(this.scrollEl.scrollTop / rowHeight) - overscan);
     const visible = Math.ceil(this.scrollEl.clientHeight / rowHeight) + overscan * 2;
     const last = Math.min(items.length, first + visible);
+    const firstShown = Math.floor(this.scrollEl.scrollTop / rowHeight);
+    const lastShown = Math.ceil((this.scrollEl.scrollTop + this.scrollEl.clientHeight) / rowHeight);
 
     this.spacerEl.empty();
     for (let index = first; index < last; index++) {
@@ -77,5 +81,6 @@ export class VirtualList<T> {
       rowEl.setCssProps({ "--trash-explorer-row-top": `${index * rowHeight}px` });
       this.renderRow(item, rowEl, index);
     }
+    this.onVisible?.(items.slice(firstShown, lastShown));
   }
 }

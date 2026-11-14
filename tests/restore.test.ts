@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { findLatestVersion, freeRestoredPath, type RestoreFiles, restoreFile } from "../src/restore";
+import { findLatestVersion, freeRestoredPath, loadVersions, type RestoreFiles, restoreFile } from "../src/restore";
 import type { HistoryItem, HistoryPage, SyncUid } from "../src/sync-api";
 
 function item(uid: SyncUid, extra: Partial<HistoryItem> = {}): HistoryItem {
@@ -74,6 +74,35 @@ describe("findLatestVersion", () => {
     expect(
       await findLatestVersion(fakeSync([{ items: [item(1, { deleted: true })], more: false }]), "a/b.md"),
     ).toBeNull();
+  });
+});
+
+describe("loadVersions", () => {
+  it("follows a rename record to the history of the old path, like the core dialog", async () => {
+    const getHistory = vi.fn(async (path: string, _before: SyncUid | null): Promise<HistoryPage> => {
+      if (path === "new/b.md") {
+        return {
+          items: [
+            item(30, { path: "new/b.md", deleted: true }),
+            item(29, { path: "new/b.md", relatedpath: "old/b.md" }),
+            item(28, { path: "new/b.md" }), // older entry after the rename record is ignored, like the core dialog
+          ],
+          more: false,
+        };
+      }
+      return { items: [item(20, { path: "old/b.md" }), item(19, { path: "old/b.md" })], more: false };
+    });
+    const result = await loadVersions({ getHistory }, "new/b.md");
+    expect(result.versions.map((version) => version.uid)).toEqual([29, 20, 19]);
+    expect(result.more).toBe(false);
+    expect(getHistory).toHaveBeenLastCalledWith("old/b.md", 29);
+  });
+
+  it("stops at the page limit and reports more", async () => {
+    const getHistory = vi.fn(async (): Promise<HistoryPage> => ({ items: [item(1, { deleted: true })], more: true }));
+    const result = await loadVersions({ getHistory }, "a.md", { maxPages: 2 });
+    expect(result).toEqual({ versions: [], more: true });
+    expect(getHistory).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -182,7 +211,7 @@ describe("restoreFile", () => {
       targetFolder: null,
       onConflict: "skip",
     });
-    expect(result).toEqual({ status: "failed", path: "a/b.md", reason: "offline" });
+    expect(result).toEqual({ status: "failed", path: "a/b.md", code: "error", reason: "offline" });
   });
 
   it("fails clearly when Sync has no content version", async () => {
@@ -193,6 +222,6 @@ describe("restoreFile", () => {
       targetFolder: null,
       onConflict: "skip",
     });
-    expect(result.status).toBe("failed");
+    expect(result).toMatchObject({ status: "failed", code: "no-content" });
   });
 });
