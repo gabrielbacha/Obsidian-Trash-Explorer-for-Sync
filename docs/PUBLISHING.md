@@ -1,15 +1,21 @@
 # Publishing checklist
 
-Status on 2026-11-14: code ready, not released, not submitted.
+Status on 2026-11-14: released 1.0.1 and submitted to the community directory
+(entry `trash-explorer-for-sync`, owner: Gabriel). Repo is public. Mindful Apps
+pages are live.
+
+Review notes from 1.0.0 (fixed in 1.0.1): the scanner flags any call to an API
+newer than `minAppVersion`, including `super.setControlValue` (1.13). It also
+warns on `!important` in CSS, and when the README title is not the manifest name.
 
 ## Before the first release
 
 - [ ] Manual test in an Obsidian vault with Sync (see the list below).
 - [ ] Screenshots in `assets/` and in the README.
-- [ ] Mindful Apps pages live: `/trash-explorer-for-sync/` and `/trash-explorer-for-sync/privacy/`
+- [x] Mindful Apps pages live: `/trash-explorer-for-sync/` and `/trash-explorer-for-sync/privacy/`
       (website repo `~/HQ/Coding/_Websites/Mindful-Apps-Website`; a push to `main` deploys).
-- [ ] Make the GitHub repo public.
-- [ ] Tag `1.0.0` and push it. The release workflow creates the GitHub release.
+- [x] Make the GitHub repo public.
+- [x] Tag `1.0.0` and push it. The release workflow creates the GitHub release.
 
 ## Manual test
 
