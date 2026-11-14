@@ -11,7 +11,7 @@ warns on `!important` in CSS, and when the README title is not the manifest name
 ## Before the first release
 
 - [ ] Manual test in an Obsidian vault with Sync (see the list below).
-- [ ] Screenshots in `assets/` and in the README.
+- [x] Screenshots in `assets/` and in the README (names and contents blurred with CSS before capture).
 - [x] Mindful Apps pages live: `/trash-explorer-for-sync/` and `/trash-explorer-for-sync/privacy/`
       (website repo `~/HQ/Coding/_Websites/Mindful-Apps-Website`; a push to `main` deploys).
 - [x] Make the GitHub repo public.

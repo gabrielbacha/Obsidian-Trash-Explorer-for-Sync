@@ -20,6 +20,18 @@ with thousands of deleted files it is almost impossible to find one note.
 Trash Explorer for Sync shows the same files in a full workspace tab that you
 can search and sort.
 
+<p align="center">
+  <img src="assets/screenshot-desktop.png" alt="Trash Explorer for Sync: deleted files list with search, filters, Content column and a Markdown preview. File names are blurred." width="900">
+</p>
+
+<p align="center">
+  <img src="assets/screenshot-mobile-list.png" alt="Narrow layout: the deleted files list" width="300">
+  &nbsp;
+  <img src="assets/screenshot-mobile-preview.png" alt="Narrow layout: the preview of a deleted note with restore buttons" width="300">
+</p>
+
+File names and contents in the screenshots are blurred.
+
 ## Highlights
 
 - Instant search in the name and folder, the name only, or the folder only.
