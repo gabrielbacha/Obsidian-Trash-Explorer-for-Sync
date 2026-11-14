@@ -1,6 +1,6 @@
 {
   "name": "obsidian-trash-explorer-for-sync",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Search, filter, preview and restore files deleted through Obsidian Sync.",
   "type": "module",

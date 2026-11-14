@@ -1,7 +1,7 @@
 {
   "id": "trash-explorer-for-sync",
   "name": "Trash Explorer for Sync",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minAppVersion": "1.8.0",
   "description": "Search, filter, preview and restore files deleted through Sync.",
   "author": "Gabriel Bacha",
