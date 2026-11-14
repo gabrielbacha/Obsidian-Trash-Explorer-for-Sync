@@ -15,7 +15,7 @@
 }
 
 .trash-explorer .is-hidden {
-  display: none !important;
+  display: none;
 }
 
 .trash-explorer-toolbar {

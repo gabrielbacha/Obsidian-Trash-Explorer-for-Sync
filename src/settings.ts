@@ -91,8 +91,13 @@ export class TrashExplorerSettingTab extends PluginSettingTab {
     ];
   }
 
+  /**
+   * Obsidian 1.13+ calls this when a declarative control changes. It does not
+   * call the base method (also 1.13+), so the plugin keeps minAppVersion 1.8.0.
+   */
   override async setControlValue(key: string, value: unknown): Promise<void> {
-    await super.setControlValue(key, value);
+    Object.assign(this.plugin.settings, parseSettings({ ...this.plugin.settings, [key]: value }));
+    await this.plugin.saveSettings();
     if (key === "showConfigFiles") this.plugin.refreshViews();
   }
 
