@@ -9,8 +9,9 @@ The website uses "Trash Explorer for Obsidian Sync".
 
 - Obsidian's community list rejects "Obsidian" in the manifest name, id and
   description. `pnpm validate` checks this.
-- All public links (manifest `authorUrl`, README, release body) go to
-  `https://mindfulapps.xyz/trash-explorer-for-sync/`, not gabrielbacha.com.
+- Public links (manifest `authorUrl`, README, release body) go to
+  `https://mindfulapps.xyz/trash-explorer-for-sync/`. The README header and
+  footer also link to gabrielbacha.com with UTM codes; nothing else does.
   The website lives in `~/HQ/Coding/_Websites/Mindful-Apps-Website`.
 - Core Sync has no public API. Only `src/sync-api.ts` may touch
   `app.internalPlugins`. Keep the runtime shape checks. After an Obsidian
