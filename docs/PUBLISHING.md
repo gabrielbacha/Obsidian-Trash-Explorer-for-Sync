@@ -1,8 +1,11 @@
 # Publishing checklist
 
-Status on 2026-11-14: released 1.0.1 and submitted to the community directory
-(entry `trash-explorer-for-sync`, owner: Gabriel). Repo is public. Mindful Apps
-pages are live.
+Status on 2026-11-14: 1.0.2 released. Published in the community directory
+(<https://community.obsidian.md/plugins/trash-explorer-for-sync>, owner: Gabriel)
+with icon and blurred screenshots. Repo is public. Mindful Apps pages are live.
+Installed and ON in all managed vaults through `__system/_MASTER.dot.obsidian`.
+To update the vaults after a release, replace the three files in
+`__system/_MASTER.dot.obsidian/plugins/trash-explorer-for-sync/` (back up first).
 
 Review notes from 1.0.0 (fixed in 1.0.1): the scanner flags any call to an API
 newer than `minAppVersion`, including `super.setControlValue` (1.13). It also
