@@ -2,7 +2,8 @@
 
 Gabriel's Obsidian plugin. Listed name **Trash Explorer for Sync**, id
 `trash-explorer-for-sync`, repo `gabrielbacha/Obsidian-Trash-Explorer-for-Sync`.
-README title and website use "Trash Explorer for Obsidian Sync".
+The README title must be the manifest name (the community review checks it).
+The website uses "Trash Explorer for Obsidian Sync".
 
 ## Rules
 

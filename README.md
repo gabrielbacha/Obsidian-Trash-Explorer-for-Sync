@@ -1,4 +1,4 @@
-# Trash Explorer for Obsidian Sync
+# Trash Explorer for Sync
 
 Search, filter, preview and restore the files that you deleted in a vault that
 uses Obsidian Sync.
@@ -19,8 +19,6 @@ dialog is one long list with no search, no filters and no folders. In a vault
 with thousands of deleted files it is almost impossible to find one note.
 Trash Explorer for Sync shows the same files in a full workspace tab that you
 can search and sort.
-
-The listed name in Obsidian is **Trash Explorer for Sync**.
 
 ## Highlights
 
