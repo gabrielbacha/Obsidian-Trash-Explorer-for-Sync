@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "rules": {
+    "no-unused-vars": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/consistent-type-definitions": ["error", "interface"],
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css"]
+      }
+    ],
+    "no-new": "off"
+  },
+  "ignorePatterns": ["main.js", "node_modules"],
+  "overrides": [
+    {
+      "files": ["tests/**"],
+      "rules": {
+        "vitest/require-mock-type-parameters": "off"
+      }
+    }
+  ]
+}

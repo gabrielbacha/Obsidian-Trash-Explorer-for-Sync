@@ -1,0 +1,5 @@
+pre-commit:
+  parallel: false
+  commands:
+    staged-quality:
+      run: python3 scripts/check_staged.py
