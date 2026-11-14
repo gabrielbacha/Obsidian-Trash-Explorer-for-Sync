@@ -17,7 +17,7 @@ export default class TrashExplorerPlugin extends Plugin {
 
     this.addCommand({
       id: "open",
-      name: "Open deleted files explorer",
+      name: "Open Sync trash to find and restore deleted files",
       callback: () => void this.openView(),
     });
 

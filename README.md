@@ -51,7 +51,9 @@ The listed name in Obsidian is **Trash Explorer for Sync**.
 
 1. Turn on Obsidian Sync for the vault.
 2. Select the **archive** ribbon icon, or run the command
-   **Trash Explorer for Sync: Open deleted files explorer**.
+   **Trash Explorer for Sync: Open Sync trash to find and restore deleted
+   files** (type "sync trash", "deleted" or "restore" in the command palette).
+   You can give it a hotkey in Settings → Hotkeys.
 3. Type in the search box or use the filters. Select a row to preview it.
 4. Select **Restore**, or **Restore to…** to choose a folder.
 5. To restore many files, use the checkboxes (Shift-click selects a range),
